@@ -10,6 +10,9 @@ These two shell scripts will greatly automate the process of setting up a master
 FILES:
 
 master.sh - should be executed on the master server.
+July 30, 2013 - This is working fully for replication on individual databases, still incomplete for all db replication.
+
+
 
 slave.sh - should be executed on the slave server.
 

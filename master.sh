@@ -184,6 +184,7 @@ if [[ ! -z $BINLOGDODB ]]
 
 
 # last chance before writing the changes to disk.
+echo
 echo -n "Write these changes to $CFGFILE now? [Y/N]: ";
 read WRITECFG
 
@@ -208,8 +209,8 @@ if [[ ! -z $BINLOGDODB ]]
 	eval sed "$SARGS"
         fi 
 
-
-echo "[SUCCESS] Your replication updates to #CFGFILE are complete."
+echo
+echo "[SUCCESS] Your replication updates to $CFGFILE are complete."
 
 
 	# if they choose not to write the changes..	
@@ -217,3 +218,123 @@ echo "[SUCCESS] Your replication updates to #CFGFILE are complete."
 		echo "Changes not written to $CFGFILE..";
 		exit
 fi
+
+##
+## Phase 2: restart the DB to read the config changes, lock the tables, verify binary logfile and position, dump the db(s)
+## unlock the db.
+##
+echo
+echo
+echo "The next step requires you to supply the root password for your MySQL DB."
+echo "This is needed to restart the database, which will use the new configuration file,"
+echo "and to query the staus of the DB, showing the binary logfile, and it's position."
+echo "Finally, we'll take a dump of the database(s) and unloack the DB."
+echo
+echo "Press any key to continue.."
+
+read BLAH
+
+
+GetPass() {
+echo -n "Please enter the root password for this MySQL instance: "
+read PW1
+
+echo -n "Please re-type the password to confirm: "
+read PW2
+
+if [[ $PW1 != $PW2 ]]
+        then
+                echo "Passwords do not match, try again."
+                GetPass
+        fi
+}
+
+
+GetRPass() {
+echo
+echo -n "Please enter the replication user's password: "
+read RPW1
+
+echo
+echo -n "Please retype the password to confirm: "
+read RPW2
+
+if [[ $RPW1 != $RPW2 ]]
+        then
+                echo "Passwords do not match, try again."
+                GetRPass
+        fi
+}
+
+
+
+GetPass
+
+echo "Restarting MySQL"
+service mysql restart
+
+# lock the db tables to create a current dump of the data.
+mysql -u root --password="$PW1" -e  'FLUSH TABLES WITH READ LOCK'
+
+# capture binary log filename, and current position ot a text file.
+mysql -u root --password="$PW1" -e 'show master status'>/tmp/binlog.txt
+
+echo "Your binary log filename, and it's current position have been saved to /tmp/binlog.txt"
+echo "You will NEED this information when configuring your Slave MySQL server."
+
+# make a dump of the specific DB to replicate if one exists.
+if [[ ! -z $BINLOGDODB ]]
+ then
+	mysqldump -u root --password="$PW1" $BINLOGDODB >/tmp/$BINLOGDODB.sql
+	echo 
+	echo "A SQL Dump of TestDB has been created and is located at /tmp/$BINLOGDODB.sql"
+	echo "You will need to copy this file onto the Slave MySQL Server."
+	echo "It can be copied to /tmp and can be deleted AFTER you have imported the data."
+ fi
+
+#
+# need to create dumps of ALL existing DB's if replication exists for all DB's
+# This is NOT yet implemented.
+
+# unlock previously locked db tables
+mysql -u root --password="$PW1" -e "unlock tables"
+echo "The MySQL tables have been unlocked and writes may once again occur."
+
+
+echo
+echo
+echo "We need to create a special database user for replication.."
+echo
+echo -n "Please enter a replication username (ex: repl): "
+read REPUSER
+
+GetRPass
+
+echo 
+echo
+echo -n "What is the IP Address of your Slave MySQL Server?: "
+read SLAVEIP
+
+echo
+echo "Review the following:"
+echo "Replication user: $REPUSER"
+echo "Replication user password: $RPW1"
+echo "Slave MySQL Host: $SLAVEIP"
+echo
+echo -n "Is this correct [Y/N]? ";
+read REPOK
+
+
+if [[ `echo $REPOK |awk '{print tolower($0)}'` == "y" ]]
+        then
+        echo "Creating the replication user.."
+        mysql -u root --password="$PW1" -e "GRANT REPLICATION SLAVE ON *.* to $REPUSER@$SLAVEIP IDENTIFIED BY '$RPW1'"
+        fi
+
+
+echo
+echo 
+echo "[SUCCESS] You have successfully configured this MySQL Database as a Master.."
+echo 
+echo "You will now have to login to the Slave MySQL Server ($SLAVEIP) and execute the slave.sh script there."
+exit
