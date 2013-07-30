@@ -1,0 +1,14 @@
+These two shell scripts will greatly automate the process of setting up a master/Slave MySQL replicated pair.
+
+FILES:
+
+master.sh - should be executed on the master server.
+
+slave.sh - should be executed on the slave server.
+
+
+
+These scripts must be executed by the root user (in order to write to mysql config files)
+
+
+
