@@ -294,7 +294,16 @@ if [[ ! -z $BINLOGDODB ]]
 
 #
 # need to create dumps of ALL existing DB's if replication exists for all DB's
-# This is NOT yet implemented.
+if [[ ! -z $BINLOGIGNOREDB ]]
+	then
+	#
+	# dump all mysql databases except 'mysql, 'information schema' and 'performance_schema'
+	echo 'show databases;' | mysql --password="$PW1" | grep -v ^Database$ | grep -v ^information_schema$ | grep -v ^mysql$ | grep -v performance_schema |grep -v ^information_schema | xargs mysqldump --skip-lock-tables --password="$PW1"  --databases >/tmp/AllDBs.sql
+
+	echo "A SQL Dump of all datases has been created and is located at /tmp/AllDBs.sql"
+	echo "You will need t ocopy this file onot the Slave MySQL Server."
+	echo "It can be copied to /tmp and can be deleted AFTER you have imported the data."
+fi
 
 # unlock previously locked db tables
 mysql -u root --password="$PW1" -e "unlock tables"
