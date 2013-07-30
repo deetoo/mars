@@ -6,6 +6,8 @@
 #!/bin/bash
 clear
 
+
+# verify root is running the script.
 if [ $UID != 0 ]
 	then
 		echo "Sorry, you must be root to execute this script.";
@@ -15,6 +17,7 @@ if [ $UID != 0 ]
 echo "We will now search for your my.cnf file...";
 echo
 
+# search for common paths to my.cnf
 if test -s /etc/my.cnf 
 	then
 		echo "[FOUND] /etc/my.cnf and will use this as the default configuration file.";     
@@ -36,9 +39,12 @@ if test -s /etc/mysql/my.cnf
 		echo "Did NOT find a default mysql configuration file.";
 		sleep 2;
 		echo
+
+		# ask user to supply the path to their my.cnf
 		echo -n "Please enter the location of your mysql configuration file:";
 		read CFGFILE
 
+		# verify that file exists.
 		if [[ ! -z $CFGFILE ]]
 			then
 				echo "$CFGFILE Not found, exiting!";
@@ -47,6 +53,7 @@ if test -s /etc/mysql/my.cnf
 fi
 echo 
 
+# next, search the my.cnf for existing replication info.
 echo
 echo "---------------------------------------------------------------";
 echo
@@ -108,6 +115,10 @@ if [ `grep -c "^binlog_ignore_db" $CFGFILE` -gt 0 ]
                 echo "Did not find a pre-existing 'binlog_ignore_db' value, all checks completed.";
 		echo
         fi
+
+
+
+# now we actually gather replication info to write to the configuration.
 echo
 echo "---------------------------------------------------------------";
 echo
@@ -126,11 +137,11 @@ echo
 echo "You have the option of replicating a single database, or all databases within this MySQL instance.";
 echo
 echo -n "Do you want to replicate all databases? [Y/N]: ";
-read preALLDB
-ALLDB=`echo $preALLDB |awk '{print tolower($0)}'`
+read ALLDB
 
 
-if [[ $ALLDB == "y" ]]
+
+if [[ `echo $ALLDB |awk '{print tolower($0)}'` == "y" ]]
 	then
 		echo "You have opted to replicate all databases, the internal 'mysql' db will be ignored.";
 		BINLOGIGNOREDB="mysql";
@@ -138,6 +149,7 @@ if [[ $ALLDB == "y" ]]
 
 
 
+# only ask for specific db ot replicate if user has not opted to replicate all dbs
 if [[ -z $BINLOGIGNOREDB ]]
 	then
 		echo
@@ -147,32 +159,41 @@ if [[ -z $BINLOGIGNOREDB ]]
 		echo -n "Enter the database you wish to replicate (case-sensitive): ";
 		read BINLOGDODB
 	fi
+
+# give user a quick look at what will be added to their my.cnf
 echo
 echo "---------------------------------------------------------------";
 echo
 echo "Here are the changes we will make:";
 echo "server-id = $SERVERID";
 echo "log_bin = $BINLOG";
+
+
+# if all dbs are being replicated.
 if [[ ! -z $BINLOGIGNOREDB ]]
 	then
 		echo "binlog_ignore_db = mysql";
 	fi
 
+
+# if only specific db is being replicated.
 if [[ ! -z $BINLOGDODB ]]
 	then
 		echo "binlog_do_db = $BINLOGDODB";
 	fi
 
 
+# last chance before writing the changes to disk.
 echo -n "Write these changes to $CFGFILE now? [Y/N]: ";
-read preWRITECFG
-WRITECFG=`echo $preWRITECFG |awk '{print tolower($0)}'`
+read WRITECFG
 
-if [[ $WRITECFG == "y" ]]
+
+if [[ `echo $WRITECFG | awk '{print tolower($0)}'` == "y" ]]
 	then
 		echo "Writing changes to $CFGFILE...";
 
 
+# this version for all db replication.
 if [[ ! -z $BINLOGIGNOREDB ]]
         then
 	SARGS="-i 's/^\[mysqld\]/\[mysqld\]\nserver-id=\"$SERVERID\"\nlog-bin=\"$BINLOG\"\nbinlog_ignore_db=\"mysql\"/' $CFGFILE"
@@ -180,12 +201,18 @@ if [[ ! -z $BINLOGIGNOREDB ]]
 	fi
 
 
+# this version for specific db replication.
 if [[ ! -z $BINLOGDODB ]]
         then
 	SARGS="-i 's/^\[mysqld\]/\[mysqld\]\nserver-id=\"$SERVERID\"\nlog-bin=\"$BINLOG\"\nbinlog_do_db=\"$BINLOGDODB\"/' $CFGFILE"
 	eval sed "$SARGS"
         fi 
-	
+
+
+echo "[SUCCESS] Your replication updates to #CFGFILE are complete."
+
+
+	# if they choose not to write the changes..	
 	else
 		echo "Changes not written to $CFGFILE..";
 		exit
