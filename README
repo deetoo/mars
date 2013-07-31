@@ -14,7 +14,7 @@ master.sh - should be executed on the master server.
 
 
 slave.sh - should be executed on the slave server.
--- NOT YET CREATED.
+-- August 1, 2013 : Initial version, very alpha..
 
 
 These scripts must be executed by the root user (in order to write to mysql config files)
