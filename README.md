@@ -14,7 +14,7 @@ replicate a single database, or ALL databases.
 
 slave.sh - This script configures a Slave MySQL node, you will have to provide some
 configuration information from the Master (dont worry, the script saves that to a text
-file on the Master) and actually copy the db dumps from the Master manually, but this
+file on the Master) and actually copies the db dumps from the Master manually, but this
 script will largely automate all other steps to complete a functioning replicated pair.
 
 

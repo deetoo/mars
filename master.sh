@@ -193,6 +193,7 @@ if [[ `echo $WRITECFG | awk '{print tolower($0)}'` == "y" ]]
 	then
 		echo "Writing changes to $CFGFILE...";
 
+sed -i 's/^bind-address/bind-address = 0.0.0.0\n#/' $CFFILE
 
 # this version for all db replication.
 if [[ ! -z $BINLOGIGNOREDB ]]
@@ -288,8 +289,6 @@ if [[ ! -z $BINLOGDODB ]]
 	mysqldump -u root --password="$PW1" $BINLOGDODB >/tmp/$BINLOGDODB.sql
 	echo 
 	echo "A SQL Dump of TestDB has been created and is located at /tmp/$BINLOGDODB.sql"
-	echo "You will need to copy this file onto the Slave MySQL Server."
-	echo "It can be copied to /tmp and can be deleted AFTER you have imported the data."
  fi
 
 #
@@ -301,8 +300,6 @@ if [[ ! -z $BINLOGIGNOREDB ]]
 	echo 'show databases;' | mysql --password="$PW1" | grep -v ^Database$ | grep -v ^information_schema$ | grep -v ^mysql$ | grep -v performance_schema |grep -v ^information_schema | xargs mysqldump --skip-lock-tables --password="$PW1"  --databases >/tmp/AllDBs.sql
 
 	echo "A SQL Dump of all datases has been created and is located at /tmp/AllDBs.sql"
-	echo "You will need t ocopy this file onot the Slave MySQL Server."
-	echo "It can be copied to /tmp and can be deleted AFTER you have imported the data."
 fi
 
 # unlock previously locked db tables
@@ -336,8 +333,17 @@ read REPOK
 
 if [[ `echo $REPOK |awk '{print tolower($0)}'` == "y" ]]
         then
+	RFILE="/tmp/replication.txt"
+
         echo "Creating the replication user.."
         mysql -u root --password="$PW1" -e "GRANT REPLICATION SLAVE ON *.* to $REPUSER@$SLAVEIP IDENTIFIED BY '$RPW1'"
+	echo "Replication User: $REPUSER" >$RFILE
+	echo "Replication User Password: $RPW1" >>$RFILE
+	BLOGFILE=`cat /tmp/binlog.txt |tail -1 |awk '{print $1}'`
+	BLOGPOS=`cat /tmp/binlog.txt |tail -1 |awk '{print $2}'`
+
+	echo "Binary Log: $BLOGFILE" >>$RFILE
+	echo "Log Position: $BLOGPOS" >>$RFILE	
         fi
 
 
@@ -345,5 +351,28 @@ echo
 echo 
 echo "[SUCCESS] You have successfully configured this MySQL Database as a Master.."
 echo 
-echo "You will now have to login to the Slave MySQL Server ($SLAVEIP) and execute the slave.sh script there."
+echo "You can now now copy the SQL dump file and replication info to the Slave."
+echo "Press any key to copy these files (you will be prompted for user/pass) or CTRL-C to exit."
+
+read COPYFILES
+echo -n "Enter username for SCP copy to Slave ($SLAVEIP): "
+read COPYUSER
+echo 
+
+echo "Attempting to scp files to /tmp on $SLAVEIP..."
+scp $RFILE $COPYUSER@$SLAVEIP:/tmp
+
+if [[ ! -z $BINLOGDODB ]]
+	then
+		scp /tmp/$BINLOGDODB.sql $COPYUSER@$SLAVEIP:/tmp
+	fi
+
+if [[ ! -z $BINLOGIGNOREDB ]]
+	then
+		scp /tmp/AllDBs.sql $COPYUSER@$SLAVEIP:/tmp
+	fi
+
+echo 
+echo "If the copy operations were successful, you can now login to the Slave"
+echo "and execute the 'slave.sh' file to configure replication on that server."
 exit

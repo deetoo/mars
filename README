@@ -11,6 +11,7 @@ FILES:
 
 master.sh - should be executed on the master server.
 -- July 30, 2013 : This script should be fully functional at this time.
+-- August 2, 2013 : Added bind-address = 0.0.0.0 so remote connections work.
 
 
 slave.sh - should be executed on the slave server.
